@@ -24,9 +24,13 @@ import time
 import re
 import multiprocessing as mp
 import logging
+from edts.edtslib import pgnames, id64data, system as edtsSystem
+
+parent_dir = os.path.abspath(os.path.dirname(__file__))
+lib_dir = os.path.join(parent_dir, "lib")
+sys.path.append(lib_dir)
 import requests
 from tqdm import tqdm
-from edts.edtslib import pgnames, id64data, system as edtsSystem
 
 LENGTH_OF_DAY = 86400
 NUMBER_OF_PROCESSES = 6
@@ -151,7 +155,7 @@ class EDSM_RSE_DB():
             r = requests.get("https://www.edsm.net/dump/systemsWithoutCoordinates.json", stream=True)
             total_size = int(r.headers.get('content-length', 0)); 
             with tqdm(r.iter_content(32*1024), total=total_size, unit='B', unit_scale=True) as pbar:
-                with open(self.jsonFile, 'b+w') as f:
+                with open(self.jsonFile, 'wb') as f:
                     for data in r.iter_content(chunk_size=32*1024):
                         if data:
                             f.write(data)
