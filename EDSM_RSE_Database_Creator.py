@@ -32,7 +32,7 @@ sys.path.append(lib_dir)
 import requests
 from tqdm import tqdm
 
-LENGTH_OF_DAY = 86400
+LENGTH_OF_DAY = 60 * 60 * 22 # set to 22 hours to make sure the json is downloaded every day
 NUMBER_OF_PROCESSES = 6
 
 logging.basicConfig(filename='edsm-rse.log',level=logging.WARN)
