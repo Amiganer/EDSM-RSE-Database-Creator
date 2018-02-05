@@ -66,18 +66,11 @@ class EDSM_RSE_DB():
         self.c = None
 
     def openDatabase(self):
-        if not self.conn:
+        if self.conn is None:
             self.conn = psycopg2.connect(host=self.db_host, port=self.db_port, dbname=self.db_name, user=self.db_user, password=self.db_password)
-            self.c = self.conn.cursor()
+            self.c    = self.conn.cursor()
 
     def createDatabase(self):
-        if os.path.exists(self.dbFile):
-            os.remove(self.dbFile)
-        if os.path.exists(self.dbJournalFile):
-            os.remove(self.dbJournalFile)
-
-        self.openDatabase()
-
         self.c.execute(" ".join([
             "CREATE TABLE IF NOT EXISTS systems (",
             "id           BIGINT PRIMARY KEY,",
@@ -85,14 +78,14 @@ class EDSM_RSE_DB():
             "x            REAL NOT NULL,",
             "y            REAL NOT NULL,",
             "z            REAL NOT NULL,",
-            "uncertainty  INTEGER DEFAULT 0,",
             "action_todo  INTEGER DEFAULT 0,",
-            "created_at   TIMESTAMPTZ NULL DEFAULT NULL,",
-            "updated_at   TIMESTAMPTZ NULL DEFAULT NULL,",
-            "deleted_at   TIMESTAMPTZ NULL DEFAULT NULL);"
+            "uncertainty  INTEGER DEFAULT 0,",
+            "created_at   TIMESTAMP NULL DEFAULT NULL,",
+            "updated_at   TIMESTAMP NULL DEFAULT NULL,",
+            "deleted_at   TIMESTAMP NULL DEFAULT NULL);"
             ]))
         self.c.execute(" ".join([
-            "CREATE TABLE IF NOT EXISTS projects(",
+            "CREATE TABLE IF NOT EXISTS projects (",
             "id integer NOT NULL,",
             "action_text TEXT DEFAULT NULL,",
             "explanation TEXT DEFAULT NULL,",
@@ -102,9 +95,9 @@ class EDSM_RSE_DB():
         self.c.execute(" ".join([
             "DROP TRIGGER IF EXISTS systems_update_at ON systems;",
             "CREATE OR REPLACE FUNCTION systems_update_trigger() RETURNS TRIGGER AS $$",
-            "DECLARE",
-                "nstring varchar := '';",
-                "act projects%ROWTYPE;",
+#            "DECLARE",
+#                "nstring varchar := '';",
+#                "act projects%ROWTYPE;",
             "BEGIN",
                 "IF TG_OP = 'INSERT' THEN",
                     "NEW.created_at := current_timestamp;",
@@ -148,17 +141,18 @@ class EDSM_RSE_DB():
     def isDatabasePresentAndValid(self):
         try:
             self.openDatabase()
+        except:
+            self.conn = None
+            self.c    = None
+            return False
+        try:
             # test if connection is really open
             self.c.execute("SELECT * from systems LIMIT 10")
             results = self.c.fetchall()
-            self.conn.close()
-            self.c = None
-            self.conn = None
             return len(results) > 0
         except:
-            self.c = None
-            self.conn = None
-        return False
+            self.conn.commit()
+            return False
 
     def checkAndDownloadJSON(self):
         # doesn't handle faulty json (e.g. aborted download)
@@ -328,19 +322,21 @@ def main():
     if not os.path.isfile("config.json"):
         sys.exit("No config file present. Please copy config.json.example to config.json and edit it")
 
-    with open("config.json") as jf:
-        j = json.load(jf)
+    with open("config.json",'rt', encoding='utf-8') as jf:
+        j  = json.load(jf)
         db = j["database"]
-        edsmRse = EDSM_RSE_DB(j["edsm_rse"]["number_of_processes"], db["host"], db["port"], db["dbname"], db["user"], db["password"])
+        edsmRse = EDSM_RSE_DB(j["edsm_rse"]["number_of_processes"],
+            db["host"], db["port"], db["dbname"], 
+            db["user"], db["password"])
 
     edsmRse.checkAndDownloadJSON()
     edsmRse.applyFilters()
 
     currentTime = int(time.time())
-    if not edsmRse.isDatabasePresentAndValid():
-        edsmRse.createDatabase()
-    else:
+    if edsmRse.isDatabasePresentAndValid():
         edsmRse.applyDelta()
+    else:
+        edsmRse.createDatabase()
     #edsmRse.scan_Navbeacons() TODO: needs fixing in the google doc
     edsmRse.conn.commit()
     print("All done :)")
