@@ -276,35 +276,27 @@ class EDSM_RSE_DB():
 
     def scan_Navbeacons(self):
         sql1 = " ".join([
-            "INSERT INTO systems (name, x, y, z, action_text, id)",
-            "VALUES (%(name)s, %(x)s, %(y)s, %(z)s, %(action_text)s, %(id)s)",
+            "INSERT INTO systems (name, x, y, z, id)",
+            "VALUES (%(name)s, %(x)s, %(y)s, %(z)s, %(id)s)",
             "ON CONFLICT (id) DO UPDATE",
             "SET name = %(name)s, deleted_at = NULL,",
-            "x = %(x)s, y = %(y)s, z = %(z)s,",
-            "action_text = %(action_text)s;",
+            "x = %(x)s, y = %(y)s, z = %(z)s;",
             "UPDATE systems SET action_todo = (action_todo | %(action_todo)s)",
             "WHERE id = %(id)s;"
         ])
 
-        sheetUrl = "https://docs.google.com/spreadsheets/d/e/2PACX-1vS13Z7df43XVQt9-rrVSkngD-T9xGWiSs7hRPPp0P8ah3iy7L6yNeyXf3oDUrUTcNEkQRAQnf9ZWXQC/pub?gid=0&single=true&output=csv"
+        sheetUrl = "https://docs.google.com/spreadsheets/d/1uX_VXA66FNoDRsF0FngpgDhmGj2p4vBO1Ik0aALLO8o/export?format=csv"
         sheetResponse = urllib.request.urlopen(sheetUrl)
-        navBeaconCSV = csv.reader(sheetResponse.read().decode("utf-8").split("\r\n"), delimiter=',')
+        navBeaconCSV = csv.reader(sheetResponse.read().decode("utf-8").split("\n"), delimiter=',')
         id64list = list()
         for data in tqdm(navBeaconCSV, desc="Navbeacons..."):
-            if navBeaconCSV.line_num < 4:
+            if navBeaconCSV.line_num < 2:
                 continue
             systemName = data[1]
-            id64 = 0
-            if not pgnames.is_pg_system_name(systemName):
-                id64 = id64data.known_systems.get(systemName.lower(), None)
-            elif systemName:
-                s = edtsSystem.from_name(name, allow_known=False)
-                if s:
-                    id64 = s.id64
-            if id64:
-                id64list.append(id64)
-                data["action_todo"] = 2
-                self.c.execute(sql1, data)
+            self.c.execute(sql1, { 
+                'id': data[0], 'name': data[1], 'action_todo': 2,
+                'x': data[2], 'y': data[3], 'z': data[4]
+            })
         self.conn.commit()
 
         if len(id64list)>0:
@@ -337,7 +329,7 @@ def main():
         edsmRse.applyDelta()
     else:
         edsmRse.createDatabase()
-    #edsmRse.scan_Navbeacons() TODO: needs fixing in the google doc
+    edsmRse.scan_Navbeacons() # TODO: needs fixing in the google doc
     edsmRse.conn.commit()
     print("All done :)")
 
